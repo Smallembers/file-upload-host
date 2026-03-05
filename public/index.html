@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TempHost | 12hr File Sharing</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; padding: 50px; background: #f4f4f9; }
+        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        input { margin: 1rem 0; }
+        #linkArea { margin-top: 1rem; word-break: break-all; color: blue; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Upload File (Max 10MB)</h2>
+        <p>Links expire automatically after 12 hours.</p>
+        <input type="file" id="filePicker">
+        <button onclick="uploadFile()">Generate Link</button>
+        <div id="linkArea"></div>
+    </div>
+
+    <script>
+        async function uploadFile() {
+            const fileInput = document.getElementById('filePicker');
+            const linkArea = document.getElementById('linkArea');
+            if (!fileInput.files[0]) return alert("Select a file!");
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            linkArea.innerText = "Uploading...";
+
+            try {
+                const response = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await response.json();
+                linkArea.innerHTML = `Link: <a href="${data.link}" target="_blank">${data.link}</a>`;
+            } catch (err) {
+                linkArea.innerText = "Upload failed. File might be too large.";
+            }
+        }
+    </script>
+</body>
+</html>
