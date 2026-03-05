@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const AdmZip = require('adm-zip'); // New dependency
+const AdmZip = require('adm-zip');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,6 +11,22 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR);
 
 let publicFiles = [];
+
+// Helper: Recursively find the first .html file
+function findFirstHtml(dir, baseDir = '') {
+    const files = fs.readdirSync(dir);
+    for (const file of files) {
+        const fullPath = path.join(dir, file);
+        const relativePath = path.join(baseDir, file);
+        if (fs.statSync(fullPath).isDirectory()) {
+            const found = findFirstHtml(fullPath, relativePath);
+            if (found) return found;
+        } else if (file.toLowerCase().endsWith('.html')) {
+            return relativePath;
+        }
+    }
+    return null;
+}
 
 const storage = multer.diskStorage({
     destination: 'uploads/',
@@ -32,7 +48,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
     const ext = path.extname(req.file.originalname).toLowerCase();
     
     let finalName = `${hash}${ext}`;
-    let finalPath = path.join(UPLOAD_DIR, finalName);
     let viewLink = `${req.protocol}://${req.get('host')}/view/${finalName}`;
 
     if (ext === '.zip') {
@@ -41,10 +56,18 @@ app.post('/upload', upload.single('file'), (req, res) => {
             const zip = new AdmZip(tempPath);
             zip.extractAllTo(zipDir, true);
         }
-        viewLink = `${req.protocol}://${req.get('host')}/view/${hash}/index.html`;
-        finalName = hash; // Reference the folder for deletion
+        
+        // Logic for Entry Point: Manual > index.html > First .html found
+        let entry = req.body.entryPoint || 'index.html';
+        if (!fs.existsSync(path.join(zipDir, entry))) {
+            const autoFound = findFirstHtml(zipDir);
+            entry = autoFound || entry;
+        }
+        
+        viewLink = `${req.protocol}://${req.get('host')}/view/${hash}/${entry}`;
+        finalName = hash; 
     } else {
-        fs.renameSync(tempPath, finalPath);
+        fs.renameSync(tempPath, path.join(UPLOAD_DIR, finalName));
     }
 
     if (req.body.makePublic === 'true') {
@@ -54,44 +77,19 @@ app.post('/upload', upload.single('file'), (req, res) => {
     res.json({ link: viewLink, id: hash });
 });
 
-// Delete Route
+// Reuse the /delete and /chat routes from the previous code...
 app.post('/delete', (req, res) => {
     const { id } = req.body;
-    // Remove from Public Chat
     publicFiles = publicFiles.filter(f => f.id !== id);
-    
-    // Remove from Disk (Checking for file or directory)
     const targetPath = path.join(UPLOAD_DIR, id);
     try {
-        if (fs.existsSync(targetPath)) {
-            fs.rmSync(targetPath, { recursive: true, force: true });
-        }
-        // Also check if it's a file with an extension (non-zip)
+        if (fs.existsSync(targetPath)) fs.rmSync(targetPath, { recursive: true, force: true });
         const files = fs.readdirSync(UPLOAD_DIR);
         files.forEach(f => { if(f.startsWith(id)) fs.unlinkSync(path.join(UPLOAD_DIR, f)); });
-        
         res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: "Failed to delete" });
-    }
+    } catch (e) { res.status(500).send(); }
 });
 
 app.get('/chat', (req, res) => res.json(publicFiles));
 
-// Reaper (every 15 mins)
-setInterval(() => {
-    const now = Date.now();
-    fs.readdir(UPLOAD_DIR, (err, items) => {
-        if (err) return;
-        items.forEach(item => {
-            const p = path.join(UPLOAD_DIR, item);
-            const stats = fs.statSync(p);
-            if (now - stats.mtimeMs > 12 * 60 * 60 * 1000) {
-                fs.rmSync(p, { recursive: true, force: true });
-                publicFiles = publicFiles.filter(f => f.id !== item.split('.')[0]);
-            }
-        });
-    });
-}, 15 * 60 * 1000);
-
-app.listen(PORT, () => console.log(`Server on ${PORT}`));
+app.listen(PORT, () => console.log(`Server running`));
