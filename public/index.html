@@ -1,43 +1,59 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>TempHost | 12hr File Sharing</title>
+    <title>QuickShare + Chat</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; padding: 50px; background: #f4f4f9; }
-        .card { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        input { margin: 1rem 0; }
-        #linkArea { margin-top: 1rem; word-break: break-all; color: blue; }
+        body { font-family: -apple-system, sans-serif; background: #fafafa; display: flex; gap: 20px; padding: 20px; }
+        .box { background: white; padding: 20px; border-radius: 12px; border: 1px solid #ddd; flex: 1; }
+        .chat-item { padding: 8px; border-bottom: 1px solid #eee; font-size: 0.9em; }
+        a { color: #007bff; text-decoration: none; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>Upload File (Max 10MB)</h2>
-        <p>Links expire automatically after 12 hours.</p>
-        <input type="file" id="filePicker">
-        <button onclick="uploadFile()">Generate Link</button>
-        <div id="linkArea"></div>
-    </div>
 
-    <script>
-        async function uploadFile() {
-            const fileInput = document.getElementById('filePicker');
-            const linkArea = document.getElementById('linkArea');
-            if (!fileInput.files[0]) return alert("Select a file!");
+<div class="box">
+    <h2>📤 Upload</h2>
+    <input type="file" id="filePicker"><br><br>
+    <label><input type="checkbox" id="makePublic"> Post to public feed</label><br><br>
+    <button onclick="uploadFile()">Upload & Get Link</button>
+    <p id="result"></p>
+</div>
 
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
+<div class="box">
+    <h2>💬 Public Feed</h2>
+    <div id="chatBox">Loading feed...</div>
+</div>
 
-            linkArea.innerText = "Uploading...";
+<script>
+    async function uploadFile() {
+        const file = document.getElementById('filePicker').files[0];
+        const isPublic = document.getElementById('makePublic').checked;
+        if (!file) return;
 
-            try {
-                const response = await fetch('/upload', { method: 'POST', body: formData });
-                const data = await response.json();
-                linkArea.innerHTML = `Link: <a href="${data.link}" target="_blank">${data.link}</a>`;
-            } catch (err) {
-                linkArea.innerText = "Upload failed. File might be too large.";
-            }
-        }
-    </script>
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('makePublic', isPublic);
+
+        const res = await fetch('/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        document.getElementById('result').innerHTML = `Link: <a href="${data.link}" target="_blank">Open File</a>`;
+        loadChat();
+    }
+
+    async function loadChat() {
+        const res = await fetch('/chat');
+        const data = await res.json();
+        const html = data.map(f => `
+            <div class="chat-item">
+                <strong>[${f.time}]</strong> Shared: 
+                <a href="${f.link}" target="_blank">${f.name}</a>
+            </div>
+        `).join('');
+        document.getElementById('chatBox').innerHTML = html || "No public files yet.";
+    }
+
+    setInterval(loadChat, 5000); // Refresh feed every 5s
+    loadChat();
+</script>
 </body>
 </html>
