@@ -1,23 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>ZipHost + Chat</title>
+    <title>ZipHost Advanced</title>
     <style>
         body { font-family: sans-serif; background: #f0f2f5; display: flex; gap: 20px; padding: 20px; }
-        .box { background: white; padding: 20px; border-radius: 12px; flex: 1; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .chat-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-        .del-btn { background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-        .note { font-size: 0.8em; color: #666; }
+        .box { background: white; padding: 20px; border-radius: 12px; flex: 1; }
+        .advanced-toggle { color: #666; font-size: 0.8em; cursor: pointer; text-decoration: underline; }
+        .hidden { display: none; }
+        #advancedSection { margin-top: 10px; padding: 10px; background: #f9f9f9; border-radius: 5px; }
+        .chat-item { display: flex; justify-content: space-between; margin-bottom: 10px; padding: 5px; border-bottom: 1px solid #eee; }
+        .del-btn { background: #ff4d4d; color: white; border: none; cursor: pointer; border-radius: 3px; }
     </style>
 </head>
 <body>
 
 <div class="box">
     <h2>📤 Upload</h2>
-    <p class="note">Zips must contain an <b>index.html</b> at the root.</p>
     <input type="file" id="filePicker"><br><br>
+    
     <label><input type="checkbox" id="makePublic"> Post to public feed</label><br><br>
-    <button onclick="uploadFile()">Upload & Preview</button>
+    
+    <span class="advanced-toggle" onclick="document.getElementById('advancedSection').classList.toggle('hidden')">
+        Advanced Settings
+    </span>
+    
+    <div id="advancedSection" class="hidden">
+        <label>Manual Entry Point (e.g. <code>home.html</code>):</label><br>
+        <input type="text" id="entryPoint" placeholder="index.html">
+    </div>
+
+    <br><button onclick="uploadFile()" style="padding: 10px 20px;">Upload & Preview</button>
     <div id="result"></div>
 </div>
 
@@ -34,12 +46,15 @@
         const formData = new FormData();
         formData.append('file', file);
         formData.append('makePublic', document.getElementById('makePublic').checked);
+        formData.append('entryPoint', document.getElementById('entryPoint').value);
+
+        document.getElementById('result').innerText = "Processing...";
 
         const res = await fetch('/upload', { method: 'POST', body: formData });
         const data = await res.json();
         
         document.getElementById('result').innerHTML = `
-            <p>File Ready: <a href="${data.link}" target="_blank">Open Preview</a></p>
+            <p>Ready: <a href="${data.link}" target="_blank">Open Project</a></p>
             <button class="del-btn" onclick="deleteFile('${data.id}')">Delete Now</button>
         `;
         loadChat();
@@ -51,7 +66,7 @@
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ id })
         });
-        document.getElementById('result').innerHTML = "File deleted.";
+        document.getElementById('result').innerHTML = "";
         loadChat();
     }
 
@@ -60,7 +75,7 @@
         const data = await res.json();
         document.getElementById('chatBox').innerHTML = data.map(f => `
             <div class="chat-item">
-                <span><a href="${f.link}" target="_blank">${f.name}</a></span>
+                <a href="${f.link}" target="_blank">${f.name}</a>
                 <button class="del-btn" onclick="deleteFile('${f.id}')">🗑️</button>
             </div>
         `).join('') || "No active shares.";
